@@ -11,6 +11,7 @@ import sys
 sys.path.append("..")
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.cuda
@@ -41,10 +42,10 @@ rootDir = "D:\\kaggle\\rsna" # Change for unix systems
 ## Fill these first
 modelTypeFlag = 'resnet50'
 randSeed = 10
-debugFlag = True # Set to True if you do not want logs to be created during debugging
+debugFlag = False # Set to True if you do not want logs to be created during debugging
 optims = ['adam']
 lrs = [0.00001] #np.linspace(0.001, 0.00001, 10)
-bsze = [32]
+bsze = [8]
 mm = 0.9 # If using SGD
 notes = modelTypeFlag +" Run. "+"" # Add whatever notes to the run
 
@@ -65,6 +66,7 @@ def main():
 #-------------------------------------------------------------------------------#  
 
     print('Loading labels into dataframe')
+    '''
     trainSheet = os.path.join(rootDir, 'stage_1_train.csv')
 
     # All labels that we have to predict in this competition
@@ -74,6 +76,9 @@ def main():
 
     trainDf = prepareDataframe(trainSheet, targets, train=True)
     trainDf = trainDf.set_index("ImageID", drop=True)
+    trainDf.to_pickle(os.path.join(rootDir, 'pd_sheet.pkl'))
+    '''
+    trainDf = pd.read_pickle(os.path.join(rootDir, "pd_sheet.pkl"))
     print('Dataframe loaded')
 
 
@@ -96,7 +101,7 @@ def main():
                 # Resnet 50 model. 
                 if modelTypeFlag == 'resnet50':
                     model = resnet50(pretrained=False)
-                    model.fc = nn.Linear(2048, 6)
+                    model.fc = nn.Linear(2048, 6) # 6th class. 'any' will be added during testing
                 
                 if args.resume:
                     if os.path.isfile(args.resume):

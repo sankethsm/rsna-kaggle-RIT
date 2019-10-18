@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
+from copy import deepcopy
 #-------------------------------------------------------------------------------#
 
 def validModel(epoch, model, validLoader, device, debugFlag, validF=None):
@@ -20,17 +21,33 @@ def validModel(epoch, model, validLoader, device, debugFlag, validF=None):
         for dict_ in tqdm(validLoader, total=nTotal):
             data = dict_['image']
             target = dict_['label']
+            target2 = deepcopy(target)
+            target = target[0:5]
+
 
             data, target = data.to(device), target.type(torch.LongTensor).to(device)
             
             output = model(data)
 
             criterion = nn.CrossEntropyLoss()
-            loss = criterion(output, torch.max(target, 1)[1])
+
+            if torch.sum(target)==0:
+                tgt = torch.max(target, 1)[1]+5
+                loss = criterion(output, tgt)
+            else:
+                tgt = torch.max(target, 1)[1]
+                loss = criterion(output, tgt)
+
             validLoss += loss.data
 
-            pred = output.argmax(dim=1, keepdim=True)
-            validAccu += pred.eq(target.view_as(pred)).sum().item()
+            gt = np.zeros(6)
+            if tgt.cpu().numpy()[0]!=5:
+                gt[tgt.cpu().numpy()[0]] = 1
+            else:
+                gt[tgt.cpu().numpy()[0]] = 1
+                gt[5] = 1
+            pd = output.cpu().numpy()
+            validAccu += np.sqrt(np.sum(np.square(gt - pd)))            
             
 
     validLoss = validLoss.cpu().numpy()

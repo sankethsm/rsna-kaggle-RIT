@@ -3,6 +3,7 @@ sys.path.append("..")
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 
@@ -20,6 +21,7 @@ def trainModel(epoch, model, trainLoader, optimizer, device, debugFlag, trainF=N
     for batch_idx, dataDict in tqdm(enumerate(trainLoader), total=nTotal):
         data = dataDict['image']
         target = dataDict['label']
+        #target = tgt[0][0:5]
         
         data, target = data.to(device), target.type(torch.LongTensor).to(device)
         #target = target.type(torch.LongTensor)
@@ -28,7 +30,13 @@ def trainModel(epoch, model, trainLoader, optimizer, device, debugFlag, trainF=N
         output = model(data)
         #print(output.shape, target.shape)
         criterion = nn.CrossEntropyLoss()
-        loss = criterion(output, torch.max(target, 1)[1])
+        
+        if torch.sum(target)==0:
+            tgt = torch.max(target, 1)[1]+5
+            loss = criterion(output, tgt)
+        else:
+            tgt = torch.max(target, 1)[1]
+            loss = criterion(output, tgt)
         
         loss.backward()
                 

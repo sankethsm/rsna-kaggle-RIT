@@ -46,6 +46,7 @@ class RsnaRIT(Dataset):
         
         if self.dataPartition == 'train':
             labels = np.array(self.dataFrame.loc[imgID,:].tolist())
+            labels = labels[:5]
         elif self.dataPartition == 'test':
             labels = None
         
