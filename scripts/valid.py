@@ -14,45 +14,50 @@ def validModel(epoch, model, validLoader, device, debugFlag, validF=None):
     """
     model.eval()
     validLoss = 0
-    validAccu = 0
+    
     nTotal = len(validLoader)
+    validAccu = np.zeros((len(validLoader) * 6, 1))
+
     with torch.no_grad():
 
-        for dict_ in tqdm(validLoader, total=nTotal):
+        for i, dict_ in enumerate(tqdm(validLoader, total=nTotal)):
             data = dict_['image']
             target = dict_['label']
-            target2 = deepcopy(target)
-            target = target[0:5]
+            #target2 = deepcopy(target)
+            data[data != data] = 0
 
-
-            data, target = data.to(device), target.type(torch.LongTensor).to(device)
+            data, target = data.to(device), target.type(torch.FloatTensor).to(device)
             
             output = model(data)
 
-            criterion = nn.CrossEntropyLoss()
+            #criterion = nn.CrossEntropyLoss()
+            criterion = nn.BCEWithLogitsLoss()
+            loss = criterion(output, target)
 
+            '''
             if torch.sum(target)==0:
                 tgt = torch.max(target, 1)[1]+5
                 loss = criterion(output, tgt)
             else:
                 tgt = torch.max(target, 1)[1]
                 loss = criterion(output, tgt)
+            '''
+            validLoss += loss.item()
 
-            validLoss += loss.data
-
-            gt = np.zeros(6)
-            if tgt.cpu().numpy()[0]!=5:
-                gt[tgt.cpu().numpy()[0]] = 1
-            else:
-                gt[tgt.cpu().numpy()[0]] = 1
-                gt[5] = 1
-            pd = output.cpu().numpy()
-            validAccu += np.sqrt(np.sum(np.square(gt - pd)))            
+            validAccu[(i * 6):((i + 1) * 6)] = torch.sigmoid(output).detach().cpu().reshape((len(data) * 6, 1))
+            #print(validAccu)
+            # gt = np.zeros(6)
+            # if tgt.cpu().numpy()[0]!=5:
+            #     gt[tgt.cpu().numpy()[0]] = 1
+            #     gt[5] = 1
+            # pd = output.cpu().numpy()
+            # validAccu += np.sqrt(np.sum(np.square(gt - pd)))            
             
 
-    validLoss = validLoss.cpu().numpy()
+    #validLoss = validLoss.cpu().numpy()
+    validAccu = np.sum(validAccu)
     print('Valid Epoch: {} \tValid Loss: {:.8f}\tValid Accuracy: {:.8f}'.format(
-            epoch, validLoss/nTotal, 100*validAccu/nTotal))
+            epoch, validLoss/nTotal, validAccu/nTotal))
 
     if not debugFlag:
         validF.write('{},{},{}\n'.format(epoch, validLoss/nTotal, validAccu/nTotal))

@@ -37,6 +37,7 @@ start_time = datetime.datetime.now()
 
 #-------------------------------------------------------------------------------#
 rootDir = "D:\\kaggle\\rsna" # Change for unix systems
+#rootDir = "G:\\My Drive\\Kaggle" # Change for unix systems
 
 #-------------------------------------------------------------------------------#
 ## Fill these first
@@ -44,9 +45,9 @@ modelTypeFlag = 'resnet50'
 randSeed = 10
 debugFlag = False # Set to True if you do not want logs to be created during debugging
 optims = ['adam']
-lrs = [0.00001] #np.linspace(0.001, 0.00001, 10)
-bsze = [8]
-mm = 0.9 # If using SGD
+lrs = [0.0001] #np.linspace(0.001, 0.00001, 10)
+bsze = [16]
+mm = 0.9 # If using SGD. Momentum
 notes = modelTypeFlag +" Run. "+"" # Add whatever notes to the run
 
 #-------------------------------------------------------------------------------#
@@ -100,8 +101,11 @@ def main():
                 ## Add models as needed
                 # Resnet 50 model. 
                 if modelTypeFlag == 'resnet50':
-                    model = resnet50(pretrained=False)
+                    model = resnet50(pretrained=True)
+                    for param in model.parameters():
+                        param.requires_grad = False
                     model.fc = nn.Linear(2048, 6) # 6th class. 'any' will be added during testing
+                    #exit(0)
                 
                 if args.resume:
                     if os.path.isfile(args.resume):

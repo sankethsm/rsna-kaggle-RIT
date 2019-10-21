@@ -37,16 +37,17 @@ class RsnaRIT(Dataset):
         #img = window_image(img, window_center, window_width, intercept, slope)
         shp = img.shape
         intImg = np.zeros((3,shp[0],shp[1]))
+
         intImg[0,:,:] = window_image(img, 40, 80, intercept, slope)     # Brain window
         intImg[0,:,:] = np.divide((intImg[0,:,:]-intImg[0,:,:].min()), (intImg[0,:,:].max() - intImg[0,:,:].min()))
         intImg[1,:,:] = window_image(img, 80, 200, intercept, slope)    # Subdural window
         intImg[1,:,:] = np.divide((intImg[1,:,:]-intImg[1,:,:].min()), (intImg[1,:,:].max() - intImg[1,:,:].min()))
         intImg[2,:,:] = window_image(img, 600, 2000, intercept, slope)  # Bone window
+        #intImg[2,:,:] = window_image(img, 80, 200, intercept, slope)  
         intImg[2,:,:] = np.divide((intImg[2,:,:]-intImg[2,:,:].min()), (intImg[2,:,:].max() - intImg[2,:,:].min()))
         
         if self.dataPartition == 'train':
             labels = np.array(self.dataFrame.loc[imgID,:].tolist())
-            labels = labels[:5]
         elif self.dataPartition == 'test':
             labels = None
         
