@@ -5,6 +5,7 @@ import numpy as np
 import time
 import cv2
 import torch
+import shutil
 
 #-----------------------------------------------------------------------------------#
 def prepareDataframe(path, targets, train=False, nrows=None):
