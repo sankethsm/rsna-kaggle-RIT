@@ -61,8 +61,8 @@ class RsnaRIT(Dataset):
             finImg[i,:,:] = cv2.resize(im, (256,256))
         finImg = finImg * 255.0
         finImg = finImg.astype(np.uint8)
-        #img = img.astype(np.uint8())
-        #img = cv2.equalizeHist(img)
+        finImg = np.transpose(finImg, (1,2,0))
+
 
         if self.transform:
             finImg = self.transform(finImg)

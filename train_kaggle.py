@@ -33,7 +33,7 @@ parser.add_argument('--picklefile', type=str, default=None)
 parser.add_argument('--network', type=str, default=None)
 parser.add_argument('--pretrained-flag', type=bool, default=True)
 parser.add_argument('--epochs', type=int, default=1)
-parser.add_argument('--batch-size', type=int, default=1)
+parser.add_argument('--batch-size', type=int, default=1000)
 parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--momentum', type=float, default=1e-2)
 parser.add_argument('--beta1', type=float, default=1e-2)
@@ -42,7 +42,6 @@ parser.add_argument('--opt', type=str, default='adam', choices=('sgd', 'adam'))
 parser.add_argument('--model-name', default = 'model.pt', help = 'What name to save for ?')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 args = parse_args(parser)
-
 print(args)
 
 def train(epoch = 0):
@@ -55,7 +54,7 @@ def train(epoch = 0):
     train_loss = 0
     
     for batch_idx, (data, targets) in enumerate(trainloader, 0):
-        print(batch_idx)
+#        print(batch_idx)
         data[data != data] = 0
         
         data, targets = data.to(device), targets.type(torch.FloatTensor).to(device)
@@ -70,8 +69,8 @@ def train(epoch = 0):
         
         train_loss += loss.item()
         
-        if (batch_idx + 1)%1 ==0:
-            print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/1))
+        if (batch_idx + 1)%10 ==0:
+            print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/10))
             train_loss = 0
         
 if __name__ == "__main__":
