@@ -18,7 +18,7 @@ import torch.cuda
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, SubsetRandomSampler
-from torchvision.models import resnet50
+from torchvision.models import resnet50, resnet101
 from tensorboardX import SummaryWriter
 
 from utils_.utils import adjust_opt, datestr, save_checkpoint, prepareDataframe
@@ -41,12 +41,12 @@ rootDir = "D:\\kaggle\\rsna" # Change for unix systems
 
 #-------------------------------------------------------------------------------#
 ## Fill these first
-modelTypeFlag = 'resnet50'
-randSeed = 10
+modelTypeFlag = 'resnet101'
+#randSeed = 705
 debugFlag = False # Set to True if you do not want logs to be created during debugging
 optims = ['adam']
 lrs = [0.0001] #np.linspace(0.001, 0.00001, 10)
-bsze = [16]
+bsze = [32]
 mm = 0.9 # If using SGD. Momentum
 notes = modelTypeFlag +" Run. "+"" # Add whatever notes to the run
 
@@ -56,13 +56,13 @@ def main():
     parser = argParser()
     args = parser.parse_args()
 
-    bestPred = 75.
+    bestPred = 0.15
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     print('Using CUDA?: ', args.cuda)
 
 #-------------------------------------------------------------------------------#
     train = trainModel
-    valid = validModel
+    #valid = validModel
 
 #-------------------------------------------------------------------------------#  
 
@@ -101,9 +101,16 @@ def main():
                 ## Add models as needed
                 # Resnet 50 model. 
                 if modelTypeFlag == 'resnet50':
-                    model = resnet50(pretrained=True)
-                    for param in model.parameters():
-                        param.requires_grad = False
+                    model = resnet50(pretrained=False)
+                    #for param in model.parameters():
+                    #    param.requires_grad = False
+                    model.fc = nn.Linear(2048, 6) # 6th class. 'any' will be added during testing
+                    #exit(0)
+
+                elif modelTypeFlag == 'resnet101':
+                    model = resnet101(pretrained=False)
+                    #for param in model.parameters():
+                    #    param.requires_grad = False
                     model.fc = nn.Linear(2048, 6) # 6th class. 'any' will be added during testing
                     #exit(0)
                 
@@ -149,25 +156,28 @@ def main():
                 
                 #trainLoader = DataLoader(trainSet, batch_size=bs, shuffle=True)
 
-                dataSz = len(trainSet)
-                validSplit = 0.2
-                indxs = list(range(dataSz))
-                split = int(np.floor(validSplit * dataSz))
-                shuffleFlag = True
+                # dataSz = len(trainSet)
+                # validSplit = 0.2
+                # indxs = list(range(dataSz))
+                # split = int(np.floor(validSplit * dataSz))
+                # shuffleFlag = True
 
-                if shuffleFlag:
-                    np.random.seed(randSeed)
-                    np.random.shuffle(indxs)
-                    trainIndxs, validIndxs = indxs[split:], indxs[:split]
+                # if shuffleFlag:
+                #     np.random.seed(randSeed)
+                #     np.random.shuffle(indxs)
+                #     trainIndxs, validIndxs = indxs[split:], indxs[:split]
                 
                 # Creating PT data samplers and loaders:
-                trainSampler = SubsetRandomSampler(trainIndxs)
-                validSampler = SubsetRandomSampler(validIndxs)
+                #trainSampler = SubsetRandomSampler(trainIndxs)
+                #validSampler = SubsetRandomSampler(validIndxs)
 
+                #trainLoader = DataLoader(trainSet, batch_size=bs, 
+                                            #sampler=trainSampler)
                 trainLoader = DataLoader(trainSet, batch_size=bs, 
-                                            sampler=trainSampler)
-                validLoader = DataLoader(trainSet, batch_size=1,
-                                            sampler=validSampler)
+                                            shuffle=True)
+
+                #validLoader = DataLoader(trainSet, batch_size=1,
+                                            #sampler=validSampler)
 
                 #-------------------------------------------------------------------#
                 
@@ -178,7 +188,7 @@ def main():
                         wfil.write("loss func," + "CrossEntropy" + '\n')
                         wfil.write("learning rate," + str(l) + '\n')
                         wfil.write("train batch size," + str(bs) + '\n')
-                        wfil.write("validation batch size," + str(1) + '\n')
+                        wfil.write("validation batch size, Not validating" + str(1) + '\n')
                         wfil.write("momentum if SGD," + str(mm) + '\n')
                         wfil.write("total epochs," + str(args.nEpochs) + '\n')
                         wfil.write("augmentation type," + 
@@ -189,10 +199,10 @@ def main():
                         wfil.write("Model,"+str(modelTypeFlag)+'\n')
                         wfil.write("Notes: " + notes + '\n')
                     trainF = open(os.path.join(sav_fol, 'train.csv'), 'w')
-                    validF = open(os.path.join(sav_fol, 'valid.csv'), 'w')
+                    #validF = open(os.path.join(sav_fol, 'valid.csv'), 'w')
                 else:
                     trainF = None
-                    validF = None
+                    #validF = None
 
                 #-------------------------------------------------------------------#
                 if opts == 'sgd':
@@ -210,12 +220,12 @@ def main():
                     
                     lossTrain = train(epoch, model, trainLoader, optimizer, device, debugFlag, trainF)
                     
-                    accuValid, lossValid = valid(epoch, model, validLoader, device, debugFlag, validF)
+                    #accuValid, lossValid = valid(epoch, model, validLoader, device, debugFlag, validF)
 
                     print('time_elapsed {} seconds'.format(time.time()-t0)) 
 
-                    if not debugFlag:
-                        writer.add_scalars('Accuracy', {'valid Accuracy':accuValid}, global_step=epoch)
+                    # if not debugFlag:
+                    #     writer.add_scalars('Accuracy', {'valid Accuracy':accuValid}, global_step=epoch)
 
                     if epoch%10 == 0:
                         for name, param in model.named_parameters():
@@ -223,13 +233,14 @@ def main():
                                 writer.add_histogram(name, param, global_step=epoch)
 
                     if not debugFlag:
-                        writer.add_scalars('Loss', {'train_loss':lossTrain,
-                                                'valid_loss': lossValid}, global_step=epoch)
+                        # writer.add_scalars('Loss', {'train_loss':lossTrain,
+                        #                         'valid_loss': lossValid}, global_step=epoch)
+                        writer.add_scalars('Loss', {'train_loss':lossTrain}, global_step=epoch)
 
                     is_best = False
-                    if (accuValid) > bestPred:
+                    if (lossTrain) < bestPred:
                         is_best = True
-                        bestPred = accuValid
+                        bestPred = lossTrain
                     
                     save_checkpoint({'epoch': epoch,
                                     'state_dict': model.state_dict(),
@@ -238,7 +249,7 @@ def main():
                 
                 if not debugFlag:
                     trainF.close()
-                    validF.close()
+                    #validF.close()
 
                     writer.close()
 
