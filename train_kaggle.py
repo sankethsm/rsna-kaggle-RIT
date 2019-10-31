@@ -21,7 +21,8 @@ from torch.utils.data import DataLoader
 from utils import parse_args
 
 from datagenerator import RsnaRIT
-from models import *
+from models import resnet50, resnet50_dilated
+from models2 import se_resnext50_32x4d
 
 np.random.seed(3108)
 torch.manual_seed(3108)
@@ -85,12 +86,14 @@ if __name__ == "__main__":
                        dataPath=args.datasetpath, 
                        dataFrame=args.picklefile,
                        transform=tx)
-    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True)
+    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True, num_workers=8)
     
     if args.network == 'resnet50':
         model = resnet50(pretrained = args.pretrained_flag)
     elif args.network == 'dilatedresnet50':
         model = resnet50_dilated(pretrained = args.pretrained_flag)
+    elif args.network == 'seresnext50':
+        model = se_resnext50_32x4d(num_classes=6)
     else:
         raise NameError ("Model not found")
         
@@ -101,7 +104,7 @@ if __name__ == "__main__":
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(model.parameters(), lr = args.lr, momentum=args.momentum)
         
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.1, last_epoch=-1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.1, last_epoch=-1)
         
     if args.disable_cuda is not True and torch.cuda.is_available():
         device = 'cuda'
