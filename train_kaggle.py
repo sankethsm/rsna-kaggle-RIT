@@ -21,13 +21,13 @@ from torch.utils.data import DataLoader
 from utils import parse_args
 
 from datagenerator import RsnaRIT
-from models import resnet18, resnet50
+from torchvision import models
 
 np.random.seed(3108)
 torch.manual_seed(3108)
 
 parser = argparse.ArgumentParser(description='Training RSNA')
-parser.add_argument('--config-file', type=str, default='configs/default.yaml')
+parser.add_argument('--config-file', type=str, default='configs/res50.yaml')
 parser.add_argument('--datasetpath', type=str, default=None)
 parser.add_argument('--picklefile', type=str, default=None)
 parser.add_argument('--network', type=str, default=None)
@@ -47,12 +47,17 @@ print(args)
 import warnings
 warnings.filterwarnings("ignore")
 
+if torch.cuda.is_available() and args.disable_cuda is False:
+    device = 'cuda'
+else:
+    device = 'cpu'
+
 def train(epoch = 0):
     """
     Training routine for the model
     """
 
-    model.train()
+    net.train()
     
     train_loss = 0
     optimizer.zero_grad() 
@@ -64,7 +69,7 @@ def train(epoch = 0):
         
         data, targets = data.to(device), targets.type(torch.FloatTensor).to(device)
        
-        output = model(data)
+        output = net(data)
         
         loss = criterion(output, targets.squeeze(1))
         loss.backward()
@@ -76,7 +81,7 @@ def train(epoch = 0):
 #            optimizer.step()
 #            optimizer.zero_grad()
             print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/5))
-            torch.save(model.state_dict(), './checkpoint/{}_batchupdate.pt'.format(args.model_name))
+            torch.save(net.state_dict(), './checkpoint/{}_batchupdate.pt'.format(args.model_name))
             train_loss = 0
         
 if __name__ == "__main__":
@@ -99,27 +104,32 @@ if __name__ == "__main__":
     np.random.shuffle(finIdx)
     finArr = intArr[finIdx]
     
+    tx = transforms.Compose([transforms.RandomHorizontalFlip(0.5),
+                             transforms.ToTensor(),])
+    
     trainset = RsnaRIT(dataPartition='train', 
                        dataPath=args.datasetpath, 
                        dataFrame=trainDf,
-                       randArray=finArr)
+                       randArray=finArr,
+                       transforms = tx)
     trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True)
     
     if args.network == 'resnet50':
-        model = resnet50(pretrained = args.pretrained_flag)
-    elif args.network == 'dilatedresnet50':
-        model = resnet50_dilated(pretrained = args.pretrained_flag)
-    elif args.network == 'resnet18':
-        model = resnet18(pretrained = args.pretrained_flag)
-    else:
-        raise NameError ("Model not found")
+        net = models.resnet50(pretrained = True)
+        net.fc = nn.Linear(2048, 6)
+    elif args.network == 'resnet101':
+        net = models.resnet101(pretrained = True)
+        net.fc = nn.Linear(2048, 6)
         
-    criterion = nn.BCEWithLogitsLoss(weight=torch.FloatTensor([1,1,1,1,1,2]).cuda())
+    net = net.to(device)
+    net = nn.DataParallel(net)
+    
+    criterion = nn.BCEWithLogitsLoss()
     
     if args.optimizer == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, betas = (args.beta1, args.beta2))
+        optimizer = torch.optim.Adam(net.parameters(), lr = args.lr, betas = (args.beta1, args.beta2))
     elif args.optimizer == "sgd":
-        optimizer = torch.optim.SGD(model.parameters(), lr = args.lr, momentum=args.momentum)
+        optimizer = torch.optim.SGD(net.parameters(), lr = args.lr, momentum=args.momentum)
         
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.1, last_epoch=-1)
         
@@ -128,13 +138,10 @@ if __name__ == "__main__":
     else:
         device = 'cpu'
         
-    model = model.to(device)
-    model = nn.DataParallel(model)
-    
     for epoch in range(args.epochs):
         train(epoch)
         
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(model.state_dict(), './checkpoint/{}_epoch{}.pt'.format(args.model_name, epoch))
+        torch.save(net.state_dict(), './checkpoint/{}_epoch{}.pt'.format(args.model_name, epoch))
         scheduler.step()

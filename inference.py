@@ -22,10 +22,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from utils import parse_args
 
-import torchvision
+from torchvision import models
 from datagenerator import RsnaRIT
-from models import resnet50, resnet50_dilated
-from models2 import se_resnext50_32x4d
 
 torch.manual_seed(3108)
 parser = argparse.ArgumentParser(description='Training RSNA')
@@ -46,6 +44,11 @@ parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 args = parse_args(parser)
 print(args)
 
+if torch.cuda.is_available() and args.disable_cuda is False:
+    device = 'cuda'
+else:
+    device = 'cpu'
+    
 if __name__ == "__main__":
     
     ## Change pickle file to read files properly
@@ -53,34 +56,42 @@ if __name__ == "__main__":
     df0 = trainDf.loc[trainDf['any']==0]
     df1 = trainDf.loc[trainDf['any']==1]
 
-    df0Names = df0.sample(n=98000*5).index[:]
-    df0Names = np.array(df0Names)
+    df0Names = df0.sample(n=98000*5)
+    df0Names = np.array(df0Names['Image'])
     df0Names = df0Names.reshape((98000,5))
-
-    df1Names = np.array(df1.index[:])
+    
+    df1Names = np.array(df1['Image'])
     df1Names = np.array([df1Names,]*5).transpose()
-
+    
     intArr = np.concatenate((df0Names,df1Names), axis=0)
-
+    
     finIdx = np.arange(intArr.shape[0])
     np.random.shuffle(finIdx)
     finArr = intArr[finIdx]
     
+    tx = transforms.Compose([transforms.ToTensor(),])
+    
     trainset = RsnaRIT(dataPartition='train', 
                        dataPath=args.datasetpath, 
                        dataFrame=trainDf,
-                       randArray=finArr)
-#    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True)
+                       randArray=finArr,
+                       transforms = tx)
+    trainloader = DataLoader(trainset, batch_size=10, shuffle = True)
     
-#    from models import resnet18
-#    net = resnet18()
-##    net = nn.DataParallel(net)
-#    net.load_state_dict(torch.load('checkpoint/resnetsimple_batchupdate.pt'))
-#    net.eval()
-#    net.cuda()
-#    
-#    z = nn.Sigmoid()
-#    with torch.no_grad():
-#        imgs, y = next(iter(trainloader))
-#        print(y, z(net(imgs.cuda())))
+    if args.network == 'resnet50':
+        net = models.resnet50(pretrained = True)
+        net.fc = nn.Linear(2048, 6)
+    elif args.network == 'resnet101':
+        net = models.resnet101(pretrained = True)
+        net.fc = nn.Linear(2048, 6)
+        
+    net.load_state_dict(torch.load('checkpoint/resnetsimple_batchupdate.pt'))
+    net.eval()
+    net = net.to(device)
+    net = nn.DataParallel(net)
+    
+    z = nn.Sigmoid()
+    with torch.no_grad():
+        imgs, y = next(iter(trainloader))
+        print(y, z(net(imgs.cuda())))
     
