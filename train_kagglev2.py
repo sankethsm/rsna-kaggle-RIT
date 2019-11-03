@@ -11,9 +11,6 @@ import sys
 sys.path.append("..")
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
-
-import os
 import numpy as np
 import pandas as pd
 import torch
@@ -23,14 +20,14 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from utils import parse_args
 
-from datagenerator import RsnaRIT
+from datagenerator import RsnaRITv2
 from networks_resnet import resnet50, resnet101, resnext50_32x4d
 
 np.random.seed(3108)
 torch.manual_seed(3108)
 
 parser = argparse.ArgumentParser(description='Training RSNA')
-parser.add_argument('--config-file', type=str, default='configs/res50.yaml')
+parser.add_argument('--config-file', type=str, default='configs/resnextv2.yaml')
 parser.add_argument('--datasetpath', type=str, default=None)
 parser.add_argument('--picklefile', type=str, default=None)
 parser.add_argument('--network', type=str, default=None)
@@ -113,7 +110,7 @@ if __name__ == "__main__":
     tx = transforms.Compose([transforms.RandomHorizontalFlip(0.5),
                              transforms.ToTensor(),])
     
-    trainset = RsnaRIT(dataPartition='train', 
+    trainset = RsnaRITv2(dataPartition='train', 
                        dataPath=args.datasetpath, 
                        dataFrame=trainDf,
                        randArray=finArr,
