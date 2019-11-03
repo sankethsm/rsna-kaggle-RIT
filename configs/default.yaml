@@ -1,12 +1,12 @@
 datasetpath: '/home/aneesh/Desktop/Datasets/RSNA'
 picklefile: '/home/aneesh/Desktop/Datasets/RSNA/pd_sheet.pkl'
 epochs: 3
-batch_size: 40
-lr: 0.05
+batch_size: 160
+lr: 0.005
 momentum: 0.9
 beta1: 0.9
 beta2: 0.999
 optimizer: adam
-network: seresnext50
-pretrained_flag: False
-model_name: seresnext50-simple
+network: resnet50
+pretrained_flag: True
+model_name: resnetsimple

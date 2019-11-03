@@ -21,8 +21,7 @@ from torch.utils.data import DataLoader
 from utils import parse_args
 
 from datagenerator import RsnaRIT
-from models import resnet50, resnet50_dilated
-from models2 import se_resnext50_32x4d
+from models import resnet18, resnet50
 
 np.random.seed(3108)
 torch.manual_seed(3108)
@@ -45,6 +44,9 @@ parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 args = parse_args(parser)
 print(args)
 
+import warnings
+warnings.filterwarnings("ignore")
+
 def train(epoch = 0):
     """
     Training routine for the model
@@ -53,58 +55,73 @@ def train(epoch = 0):
     model.train()
     
     train_loss = 0
-    
+    optimizer.zero_grad() 
+
     for batch_idx, (data, targets) in enumerate(trainloader, 0):
 #        print(batch_idx)
+        optimizer.zero_grad()
         data[data != data] = 0
         
         data, targets = data.to(device), targets.type(torch.FloatTensor).to(device)
        
-        optimizer.zero_grad() 
         output = model(data)
         
-        loss = criterion(output, targets)
+        loss = criterion(output, targets.squeeze(1))
         loss.backward()
-        
         optimizer.step()
         
         train_loss += loss.item()
         
-        if (batch_idx + 1)%10 ==0:
-            print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/10))
+        if (batch_idx + 1)%5 ==0:
+#            optimizer.step()
+#            optimizer.zero_grad()
+            print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/5))
+            torch.save(model.state_dict(), './checkpoint/{}_batchupdate.pt'.format(args.model_name))
             train_loss = 0
         
 if __name__ == "__main__":
+
+    ## Change pickle file to read files properly
+    trainDf = pd.read_pickle(args.picklefile)
+    df0 = trainDf.loc[trainDf['any']==0]
+    df1 = trainDf.loc[trainDf['any']==1]
+
+    df0Names = df0.sample(n=98000*5)
+    df0Names = np.array(df0Names['Image'])
+    df0Names = df0Names.reshape((98000,5))
     
-    tx = transforms.Compose([transforms.ToPILImage(),
-                             transforms.RandomHorizontalFlip(p = 0.5),
-                             transforms.RandomRotation(degrees = 5),
-                             transforms.ColorJitter(brightness = 0.05, contrast = 0.05),
-                             transforms.ToTensor(),])
-#    tx = None
+    df1Names = np.array(df1['Image'])
+    df1Names = np.array([df1Names,]*5).transpose()
+    
+    intArr = np.concatenate((df0Names,df1Names), axis=0)
+    
+    finIdx = np.arange(intArr.shape[0])
+    np.random.shuffle(finIdx)
+    finArr = intArr[finIdx]
+    
     trainset = RsnaRIT(dataPartition='train', 
                        dataPath=args.datasetpath, 
-                       dataFrame=args.picklefile,
-                       transform=tx)
-    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True, num_workers=8)
+                       dataFrame=trainDf,
+                       randArray=finArr)
+    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle = True)
     
     if args.network == 'resnet50':
         model = resnet50(pretrained = args.pretrained_flag)
     elif args.network == 'dilatedresnet50':
         model = resnet50_dilated(pretrained = args.pretrained_flag)
-    elif args.network == 'seresnext50':
-        model = se_resnext50_32x4d(num_classes=6)
+    elif args.network == 'resnet18':
+        model = resnet18(pretrained = args.pretrained_flag)
     else:
         raise NameError ("Model not found")
         
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(weight=torch.FloatTensor([1,1,1,1,1,2]).cuda())
     
     if args.optimizer == "adam":
         optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, betas = (args.beta1, args.beta2))
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(model.parameters(), lr = args.lr, momentum=args.momentum)
         
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.1, last_epoch=-1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.1, last_epoch=-1)
         
     if args.disable_cuda is not True and torch.cuda.is_available():
         device = 'cuda'
@@ -112,6 +129,7 @@ if __name__ == "__main__":
         device = 'cpu'
         
     model = model.to(device)
+    model = nn.DataParallel(model)
     
     for epoch in range(args.epochs):
         train(epoch)

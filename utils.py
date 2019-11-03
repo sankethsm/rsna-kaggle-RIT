@@ -38,13 +38,20 @@ def prepareDataframe(path, targets, train=False, nrows=None):
     return newDf
 
 #-----------------------------------------------------------------------------------#
-def window_image(img, window_center,window_width, intercept, slope):
-
+def window_image(img, window_center,window_width, intercept, slope, rescale = True):
+    
+#    img = img.copy()
     img = (img*slope +intercept)
+    
     img_min = window_center - window_width//2
     img_max = window_center + window_width//2
+    
     img[img<img_min] = img_min
     img[img>img_max] = img_max
+    
+    if rescale is True: 
+        img = (img - img_min)/(img_max - img_min)
+        
     return img
 
 #-----------------------------------------------------------------------------------#
