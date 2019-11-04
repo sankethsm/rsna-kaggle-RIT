@@ -21,13 +21,13 @@ from torch.utils.data import DataLoader
 from utils import parse_args
 
 from datagenerator import RsnaRITv2
-from networks_resnet import resnet50, resnet101, resnext50_32x4d
+from networks_resnet import resnet50, resnet101, resnext50_32x4d, dilated_resnext50_32x4d
 
 np.random.seed(3108)
 torch.manual_seed(3108)
 
 parser = argparse.ArgumentParser(description='Training RSNA')
-parser.add_argument('--config-file', type=str, default='configs/resnextv2.yaml')
+parser.add_argument('--config-file', type=str, default='configs/dresnextv2_gcblock.yaml')
 parser.add_argument('--datasetpath', type=str, default=None)
 parser.add_argument('--picklefile', type=str, default=None)
 parser.add_argument('--network', type=str, default=None)
@@ -44,6 +44,11 @@ parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--drop_prob', type=float, default=None)
 parser.add_argument('--dropblock_size', type=float, default=None)
 parser.add_argument('--dropblock_steps', type=float, default=None)
+parser.add_argument('--gcblock3', type=bool, default=False)
+parser.add_argument('--gcblock4', type=bool, default=False)
+parser.add_argument('--gcblock5', type=bool, default=False)
+
+
 args = parse_args(parser)
 print(args)
 
@@ -119,15 +124,23 @@ if __name__ == "__main__":
     
     if args.network == 'resnet50':
         net = resnet50(pretrained = True, drop_prob = args.drop_prob, dropblock_size = args.dropblock_size
-                       , dropblock_steps = args.dropblock_steps)
+                       , dropblock_steps = args.dropblock_steps, 
+                       isgcb = [args.gcblock3, args.gcblock4, args.gcblock5])
         net.fc = nn.Linear(2048, 6)
     elif args.network == 'resnet101':
         net = resnet101(pretrained = True, drop_prob = args.drop_prob, dropblock_size = args.dropblock_size
-                       , dropblock_steps = args.dropblock_steps)
+                       , dropblock_steps = args.dropblock_steps, 
+                       isgcb = [args.gcblock3, args.gcblock4, args.gcblock5])
         net.fc = nn.Linear(2048, 6)
     elif args.network == 'resnext50':
         net = resnext50_32x4d(pretrained = True, drop_prob = args.drop_prob, dropblock_size = args.dropblock_size
-                       , dropblock_steps = args.dropblock_steps)
+                       , dropblock_steps = args.dropblock_steps, 
+                       isgcb = [args.gcblock3, args.gcblock4, args.gcblock5])
+        net.fc = nn.Linear(2048, 6)
+    elif args.network == 'dilatedresnext50':
+        net = dilated_resnext50_32x4d(pretrained = True, drop_prob = args.drop_prob, dropblock_size = args.dropblock_size
+                       , dropblock_steps = args.dropblock_steps, 
+                       isgcb = [args.gcblock3, args.gcblock4, args.gcblock5])
         net.fc = nn.Linear(2048, 6)
         
     net = net.to(device)
@@ -139,7 +152,7 @@ if __name__ == "__main__":
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(net.parameters(), lr = args.lr, momentum=args.momentum)
         
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.1, last_epoch=-1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.1, last_epoch=-1)
         
     if args.disable_cuda is not True and torch.cuda.is_available():
         device = 'cuda'

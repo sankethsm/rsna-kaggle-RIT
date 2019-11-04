@@ -9,6 +9,7 @@ Created on Sun Nov  3 16:20:10 2019
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 from dropblock import LinearScheduler, DropBlock
+from gcblock import ContextBlock
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'resnext50_32x4d', 'resnext101_32x8d']
@@ -24,6 +25,8 @@ model_urls = {
     'resnext101_32x8d': 'https://download.pytorch.org/models/resnext101_32x8d-8ba56ff5.pth',
 }
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
@@ -80,7 +83,7 @@ class Bottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None, gcblock=False):
         super(Bottleneck, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -95,7 +98,13 @@ class Bottleneck(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
-
+        self.isgcb = gcblock
+        
+        if self.isgcb:
+            gcb_inplanes = planes * self.expansion
+            self.context_block = ContextBlock(inplanes=gcb_inplanes,
+                                              ratio = 1/16) #hardcoded for now
+            
     def forward(self, x):
         identity = x
 
@@ -109,6 +118,9 @@ class Bottleneck(nn.Module):
 
         out = self.conv3(out)
         out = self.bn3(out)
+        
+        if self.isgcb:
+            out = self.context_block(out)
 
         if self.downsample is not None:
             identity = self.downsample(x)
@@ -123,7 +135,8 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, drop_prob = None, dropblock_size = None, dropblock_steps = None):
+                 norm_layer=None, drop_prob = None, dropblock_size = None,
+                 dropblock_steps = None, isgcb = [False, False, False]):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -145,13 +158,19 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        
+        ####
+        
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
-                                       dilate=replace_stride_with_dilation[0])
+                                       dilate=replace_stride_with_dilation[0],
+                                       isgcb = isgcb[0])
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
-                                       dilate=replace_stride_with_dilation[1])
+                                       dilate=replace_stride_with_dilation[1],
+                                       isgcb = isgcb[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
-                                       dilate=replace_stride_with_dilation[2])
+                                       dilate=replace_stride_with_dilation[2],
+                                       isgcb = isgcb[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         self.drop_prob = drop_prob
@@ -182,8 +201,9 @@ class ResNet(nn.Module):
                               nr_steps = dropblock_steps)
         else:
             self.db = DropBlock()
-
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+            
+        
+    def _make_layer(self, block, planes, blocks, stride=1, dilate=False, isgcb = False):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -198,12 +218,12 @@ class ResNet(nn.Module):
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
-                            self.base_width, previous_dilation, norm_layer))
+                            self.base_width, previous_dilation, norm_layer, gcblock = isgcb))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation,
-                                norm_layer=norm_layer))
+                                norm_layer=norm_layer, gcblock = isgcb))
 
         return nn.Sequential(*layers)
 
@@ -233,7 +253,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict = False)
     return model
 
 
@@ -316,3 +336,15 @@ def resnext101_32x8d(pretrained=False, progress=True, **kwargs):
     kwargs['width_per_group'] = 8
     return _resnet('resnext101_32x8d', Bottleneck, [3, 4, 23, 3],
                    pretrained, progress, **kwargs)
+    
+def dilated_resnext50_32x4d(pretrained=False, progress=True, **kwargs):
+    """Constructs a ResNeXt-50 32x4d model.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['groups'] = 32
+    kwargs['width_per_group'] = 4
+    return _resnet('resnext50_32x4d', Bottleneck, [3, 4, 6, 3],
+                   pretrained, progress, replace_stride_with_dilation=[False, False, True],**kwargs)
