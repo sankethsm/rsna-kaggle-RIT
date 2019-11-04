@@ -75,11 +75,19 @@ class RsnaRITv2(Dataset):
         #self.clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
 
     def __len__(self):
-        return len(self.randArray)
+        if self.dataPartition == 'train':
+            lenth = len(self.randArray)
+        else:
+            lenth = len(self.dataList)
+        return lenth
 
     def __getitem__(self, img_id):
-        imgID = np.random.choice(self.randArray[img_id])
-        imagePath = os.path.join(self.dataPath, imgID + '.dcm')
+        if self.dataPartition == 'train':
+            imgID = np.random.choice(self.randArray[img_id])
+            imagePath = os.path.join(self.dataPath, imgID + '.dcm')
+        elif self.dataPartition == 'test':
+            imgID = self.dataList[img_id]
+            imagePath = os.path.join(self.dataPath, imgID)
         
         data = pydicom.dcmread(imagePath)
         window_center, window_width, intercept, slope = get_windowing(data)
