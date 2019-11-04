@@ -86,7 +86,7 @@ def train(epoch = 0):
         train_loss += loss.item()
         
         if (batch_idx + 1)%5 ==0:
-#            optimizer.step()
+#            optimizer.step()print(z(
 #            optimizer.zero_grad()
             print("Batchidx: {} of {} Loss = {:.3f}".format((batch_idx +1), len(trainloader), train_loss/5))
             torch.save(net.state_dict(), './checkpoint/{}_batchupdate.pt'.format(args.model_name))
@@ -96,6 +96,7 @@ if __name__ == "__main__":
 
     ## Change pickle file to read files properly
     trainDf = pd.read_pickle(args.picklefile)
+    trainDf = trainDf[trainDf['Image'] != 'ID_6431af929']
     df0 = trainDf.loc[trainDf['any']==0]
     df1 = trainDf.loc[trainDf['any']==1]
 
@@ -113,9 +114,13 @@ if __name__ == "__main__":
     finArr = intArr[finIdx]
     
     tx = transforms.Compose([transforms.RandomHorizontalFlip(0.5),
+                             transforms.RandomVerticalFlip(0.5),
+                             transforms.ColorJitter(brightness=0.08, contrast=0.08, ),
+                             transforms.RandomApply(
+                                     [transforms.RandomRotation(degrees = 20)], p=0.5),
                              transforms.ToTensor(),])
     
-    trainset = RsnaRIT(dataPartition='train', 
+    trainset = RsnaRITv2(dataPartition='train', 
                        dataPath=args.datasetpath, 
                        dataFrame=trainDf,
                        randArray=finArr,
@@ -152,7 +157,7 @@ if __name__ == "__main__":
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(net.parameters(), lr = args.lr, momentum=args.momentum)
         
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 1, gamma=0.1, last_epoch=-1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 2, gamma=0.1, last_epoch=-1)
         
     if args.disable_cuda is not True and torch.cuda.is_available():
         device = 'cuda'

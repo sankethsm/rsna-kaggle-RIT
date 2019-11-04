@@ -103,7 +103,7 @@ class Bottleneck(nn.Module):
         if self.isgcb:
             gcb_inplanes = planes * self.expansion
             self.context_block = ContextBlock(inplanes=gcb_inplanes,
-                                              ratio = 1/16) #hardcoded for now
+                                              ratio = 1/8) #hardcoded for now
             
     def forward(self, x):
         identity = x

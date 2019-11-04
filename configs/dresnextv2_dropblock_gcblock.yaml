@@ -1,7 +1,7 @@
 datasetpath: '/home/aneesh/Desktop/Datasets/RSNA'
 picklefile: '/home/aneesh/Desktop/Datasets/RSNA/pd_sheet.pkl'
-epochs: 3
-batch_size: 128
+epochs: 6
+batch_size: 160
 lr: 0.0005
 momentum: 0.9
 beta1: 0.9
@@ -9,9 +9,10 @@ beta2: 0.999
 optimizer: adam
 network: dilatedresnext50
 pretrained_flag: True
-model_name: dilatedresnext50-withdb-withgc
-drop_prob: 0.25
-dropblock_size: 3
+model_name: dilatedresnext50-withdb-withgc-withaugs
+drop_prob: 0.4
+dropblock_size: 5
 dropblock_steps: 2000
+gcblock3: True
 gcblock4: True
 gcblock5: True
